@@ -19,8 +19,8 @@ import Image from 'next/image';
 function PlayerContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const isSecret = searchParams.get('secret') === '1';
-  const { addToHistory } = useHistory(isSecret);
+  const isPremium = searchParams.get('premium') === '1';
+  const { addToHistory } = useHistory(isPremium);
 
   const videoId = searchParams.get('id');
   const source = searchParams.get('source');
@@ -136,7 +136,7 @@ function PlayerContent() {
   return (
     <div className="min-h-screen bg-[var(--bg-color)]">
       {/* Glass Navbar */}
-      <PlayerNavbar isSecret={isSecret} />
+      <PlayerNavbar isPremium={isPremium} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
         {loading ? (
@@ -162,7 +162,7 @@ function PlayerContent() {
                 totalEpisodes={videoData?.episodes?.length || 1}
                 onNextEpisode={handleNextEpisode}
                 isReversed={isReversed}
-                isSecret={isSecret}
+                isPremium={isPremium}
               />
               <VideoMetadata
                 videoData={videoData}
@@ -181,7 +181,7 @@ function PlayerContent() {
                     type={videoData.type_name}
                     year={videoData.vod_year}
                     size={20}
-                    isSecret={isSecret}
+                    isPremium={isPremium}
                   />
                   <span className="text-sm text-[var(--text-color-secondary)]">
                     收藏这个视频
@@ -229,7 +229,7 @@ function PlayerContent() {
       </main>
 
       {/* Favorites Sidebar - Left */}
-      <FavoritesSidebar isSecret={isSecret} />
+      <FavoritesSidebar isPremium={isPremium} />
     </div>
   );
 }

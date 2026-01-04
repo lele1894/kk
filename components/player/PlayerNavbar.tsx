@@ -6,7 +6,7 @@ import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 import { Icons } from '@/components/ui/Icon';
 import { siteConfig } from '@/lib/config/site-config';
 
-export function PlayerNavbar({ isSecret }: { isSecret?: boolean }) {
+export function PlayerNavbar({ isPremium }: { isPremium?: boolean }) {
     const router = useRouter();
 
     return (
@@ -15,9 +15,9 @@ export function PlayerNavbar({ isSecret }: { isSecret?: boolean }) {
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                         <button
-                            onClick={() => router.push(isSecret ? '/secret' : '/')}
+                            onClick={() => router.push(isPremium ? '/premium' : '/')}
                             className="flex items-center justify-center hover:opacity-80 transition-opacity flex-shrink-0 cursor-pointer"
-                            title={isSecret ? "返回私密主页" : "返回首页"}
+                            title={isPremium ? "返回高级主页" : "返回首页"}
                         >
                             <Image
                                 src="/icon.png"

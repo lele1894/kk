@@ -4,7 +4,7 @@ import { useSearchCache } from '@/lib/hooks/useSearchCache';
 import { useParallelSearch } from '@/lib/hooks/useParallelSearch';
 import { settingsStore } from '@/lib/store/settings-store';
 
-export function useSecretHomePage() {
+export function usePremiumHomePage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { loadFromCache, saveToCache } = useSearchCache();
@@ -14,14 +14,14 @@ export function useSecretHomePage() {
     const [hasSearched, setHasSearched] = useState(false);
     const [currentSortBy, setCurrentSortBy] = useState('default');
 
-    // Get adult sources from settings store (supports user customization)
-    const enabledAdultSources = useMemo(() => {
+    // Get premium sources from settings store (supports user customization)
+    const enabledPremiumSources = useMemo(() => {
         const settings = settingsStore.getSettings();
-        return settings.adultSources.filter(s => s.enabled);
+        return settings.premiumSources.filter(s => s.enabled);
     }, []);
 
     const onUrlUpdate = useCallback((q: string) => {
-        router.replace(`/secret?q=${encodeURIComponent(q)}`, { scroll: false });
+        router.replace(`/premium?q=${encodeURIComponent(q)}`, { scroll: false });
     }, [router]);
 
     // Search stream hook
@@ -53,9 +53,9 @@ export function useSecretHomePage() {
         hasLoadedCache.current = true;
 
         const urlQuery = searchParams.get('q');
-        // Note: We might want to separate cache for secret mode, but for now sharing or not using cache might be safer.
+        // Note: We might want to separate cache for premium mode, but for now sharing or not using cache might be safer.
         // However, useSearchCache uses localStorage which is shared. 
-        // If we want to avoid leaking secret searches to normal history, we might want to disable cache or use a different key.
+        // If we want to avoid leaking premium searches to normal history, we might want to disable cache or use a different key.
         // For simplicity and "hidden" nature, maybe we don't load cache from normal mode?
         // But the user asked for "same as original page".
 
@@ -68,15 +68,15 @@ export function useSecretHomePage() {
     const handleSearch = (searchQuery: string) => {
         setQuery(searchQuery);
         setHasSearched(true);
-        // Use enabled adult sources from settings
-        performSearch(searchQuery, enabledAdultSources, currentSortBy as any);
+        // Use enabled premium sources from settings
+        performSearch(searchQuery, enabledPremiumSources, currentSortBy as any);
     };
 
     const handleReset = () => {
         setHasSearched(false);
         setQuery('');
         resetSearch();
-        router.replace('/secret', { scroll: false });
+        router.replace('/premium', { scroll: false });
     };
 
     return {

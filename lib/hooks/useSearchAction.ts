@@ -39,8 +39,8 @@ export function useSearchAction({ state, onCacheUpdate, onUrlUpdate }: UseSearch
             targetSources = [
                 ...settings.sources,
                 ...settings.subscriptions.filter(s => (s as any).enabled !== false), // Include valid subscriptions
-                // Maybe check adult settings? For main search, we usually include all enabled.
-                // But typically search implies general search. Adult might be separate?
+                // Maybe check premium settings? For main search, we usually include all enabled.
+                // But typically search implies general search. Premium might be separate?
                 // The prompt for "search" includes all.
             ].filter(s => (s as any).enabled !== false);
         }
