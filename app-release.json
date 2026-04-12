@@ -4,8 +4,18 @@
     "name": "KVideo",
     "branch": "main"
   },
-  "currentVersion": "4.9.0",
+  "currentVersion": "4.9.1",
   "releases": [
+    {
+      "version": "4.9.1",
+      "publishedAt": "2026-04-12",
+      "title": "修复 Cloudflare Pages 构建失败",
+      "notes": [
+        "移除仅支持 Node.js 的 /api/site-icon 路由，避免 next-on-pages 因非 Edge 路由中止构建。",
+        "站点图标改为由服务端布局直接解析，导航栏和播放器页继续显示运行时配置的图标。",
+        "PWA manifest 回退为静态图标，确保 Cloudflare Pages、Docker 和本地构建链路一致可用。"
+      ]
+    },
     {
       "version": "4.9.0",
       "publishedAt": "2026-04-12",
