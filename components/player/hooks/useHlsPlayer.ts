@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import Hls from 'hls.js';
 import { usePlayerSettings } from './usePlayerSettings';
 import { filterM3u8Ad } from '@/lib/utils/m3u8-utils';
+import { useRuntimeFeatures } from '@/components/RuntimeFeaturesProvider';
 
 interface UseHlsPlayerProps {
     videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -11,6 +12,34 @@ interface UseHlsPlayerProps {
     onAutoPlayPrevented?: (error: Error) => void;
     onError?: (message: string) => void;
 }
+
+interface PlaylistLoaderContext {
+    type: string;
+    url: string;
+}
+
+interface PlaylistLoaderResponse {
+    data?: string;
+}
+
+interface PlaylistLoaderCallbacks {
+    onSuccess: (
+        response: PlaylistLoaderResponse,
+        stats: unknown,
+        context: PlaylistLoaderContext,
+        networkDetails: unknown
+    ) => void;
+}
+
+interface PlaylistLoaderInstance {
+    load(
+        context: PlaylistLoaderContext,
+        config: unknown,
+        callbacks: PlaylistLoaderCallbacks
+    ): void;
+}
+
+type PlaylistLoaderConstructor = new (config: unknown) => PlaylistLoaderInstance;
 
 export function useHlsPlayer({
     videoRef,
@@ -22,6 +51,7 @@ export function useHlsPlayer({
 }: UseHlsPlayerProps) {
     const hlsRef = useRef<Hls | null>(null);
     const { adFilterMode, adKeywords } = usePlayerSettings(isPremium);
+    const { mediaProxyEnabled } = useRuntimeFeatures();
     const isAdFilterEnabled = adFilterMode !== 'off';
 
     useEffect(() => {
@@ -46,23 +76,22 @@ export function useHlsPlayer({
         if (isMSESupported) {
 
             // Define custom loader class to intercept manifest loading
-            // We use 'any' cast because default loader type might not be strictly exposed in all typings
-            const DefaultLoader = (Hls as any).DefaultConfig.loader;
+            const DefaultLoader = Hls.DefaultConfig.loader as unknown as PlaylistLoaderConstructor;
 
             class AdFilterLoader extends DefaultLoader {
-                load(context: any, config: any, callbacks: any) {
+                load(context: PlaylistLoaderContext, config: unknown, callbacks: PlaylistLoaderCallbacks) {
                     if (isAdFilterEnabled && (context.type === 'manifest' || context.type === 'level')) {
                         const originalOnSuccess = callbacks.onSuccess;
-                        callbacks.onSuccess = (response: any, stats: any, context: any, networkDetails: any) => {
+                        callbacks.onSuccess = (response, stats, requestContext, networkDetails) => {
                             if (typeof response.data === 'string') {
                                 try {
                                     // Filter the content
-                                    response.data = filterM3u8Ad(response.data, context.url, adFilterMode, adKeywords);
+                                    response.data = filterM3u8Ad(response.data, requestContext.url, adFilterMode, adKeywords);
                                 } catch (e) {
                                     console.warn('[HLS] Ad filter error:', e);
                                 }
                             }
-                            originalOnSuccess(response, stats, context, networkDetails);
+                            originalOnSuccess(response, stats, requestContext, networkDetails);
                         };
                     }
                     super.load(context, config, callbacks);
@@ -74,7 +103,7 @@ export function useHlsPlayer({
                 // Exceptions might exist for iOS where MSE is strictly not available, check Hls.isSupported() result carefully.
                 // Hls.isSupported() is false on iOS Safari usually, so this block won't run there.
 
-                const config: any = {
+                const config: Partial<Hls['config']> = {
                     // Worker & Performance
                     enableWorker: true,
                     lowLatencyMode: false,
@@ -119,7 +148,7 @@ export function useHlsPlayer({
 
                 // Use custom loader if ad filtering is enabled
                 if (isAdFilterEnabled) {
-                    config.loader = AdFilterLoader;
+                    config.loader = AdFilterLoader as unknown as typeof Hls.DefaultConfig.loader;
                 }
 
                 hls = new Hls(config);
@@ -225,6 +254,9 @@ export function useHlsPlayer({
                         if (!res.ok) throw new Error(`HTTP ${res.status}`);
                         return await res.text();
                     } catch (e) {
+                        if (!mediaProxyEnabled) {
+                            throw e;
+                        }
                         console.warn(`[HLS Native] Fetch failed for ${url}, trying proxy...`, e);
                         const proxiedUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
                         const res = await fetch(proxiedUrl);
@@ -397,6 +429,10 @@ export function useHlsPlayer({
             const handleError = () => {
                 if (directFailed) return;
                 directFailed = true;
+                if (!mediaProxyEnabled) {
+                    onError?.('当前浏览器不支持 HLS 视频播放。建议使用 Chrome、Edge 或 Safari 浏览器。');
+                    return;
+                }
                 // Try proxied URL as final attempt
                 const proxiedUrl = `/api/proxy?url=${encodeURIComponent(src)}`;
                 video.src = proxiedUrl;
@@ -415,5 +451,5 @@ export function useHlsPlayer({
             }
             extraBlobs.forEach(url => URL.revokeObjectURL(url));
         };
-    }, [src, videoRef, autoPlay, onAutoPlayPrevented, onError, isAdFilterEnabled, adFilterMode, adKeywords]);
+    }, [src, videoRef, autoPlay, onAutoPlayPrevented, onError, isAdFilterEnabled, adFilterMode, adKeywords, mediaProxyEnabled]);
 }

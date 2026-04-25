@@ -16,6 +16,7 @@ import {
     parseSourcesFromJson,
     fetchSourcesFromUrl
 } from '@/lib/utils/source-import-utils';
+import { clearSession } from '@/lib/store/auth-store';
 
 export function useSettingsPage() {
     const [sources, setSources] = useState<VideoSource[]>([]);
@@ -36,6 +37,7 @@ export function useSettingsPage() {
     const [seekStepSeconds, setSeekStepSeconds] = useState(DEFAULT_SEEK_STEP_SECONDS);
     const [rememberScrollPosition, setRememberScrollPosition] = useState(true);
     const [locale, setLocale] = useState<LocaleOption>('zh-CN');
+    const [videoTogetherEnabled, setVideoTogetherEnabled] = useState(false);
 
     // Danmaku settings
     const [danmakuApiUrl, setDanmakuApiUrl] = useState('');
@@ -47,22 +49,28 @@ export function useSettingsPage() {
     const [blockedCategories, setBlockedCategories] = useState<string[]>([]);
 
     useEffect(() => {
-        const settings = settingsStore.getSettings();
-        setSources(settings.sources || []);
-        setSubscriptions(settings.subscriptions || []);
-        setSortBy(settings.sortBy);
-        setRealtimeLatency(settings.realtimeLatency);
-        setSearchDisplayMode(settings.searchDisplayMode);
-        setFullscreenType(settings.fullscreenType);
-        setProxyMode(settings.proxyMode);
-        setSeekStepSeconds(settings.seekStepSeconds);
-        setRememberScrollPosition(settings.rememberScrollPosition);
-        setLocale(settings.locale);
-        setDanmakuApiUrl(settings.danmakuApiUrl);
-        setDanmakuOpacity(settings.danmakuOpacity);
-        setDanmakuFontSize(settings.danmakuFontSize);
-        setDanmakuDisplayArea(settings.danmakuDisplayArea);
-        setBlockedCategories(settings.blockedCategories || []);
+        const syncFromStore = () => {
+            const settings = settingsStore.getSettings();
+            setSources(settings.sources || []);
+            setSubscriptions(settings.subscriptions || []);
+            setSortBy(settings.sortBy);
+            setRealtimeLatency(settings.realtimeLatency);
+            setSearchDisplayMode(settings.searchDisplayMode);
+            setFullscreenType(settings.fullscreenType);
+            setProxyMode(settings.proxyMode);
+            setSeekStepSeconds(settings.seekStepSeconds);
+            setRememberScrollPosition(settings.rememberScrollPosition);
+            setLocale(settings.locale);
+            setVideoTogetherEnabled(settings.videoTogetherEnabled);
+            setDanmakuApiUrl(settings.danmakuApiUrl);
+            setDanmakuOpacity(settings.danmakuOpacity);
+            setDanmakuFontSize(settings.danmakuFontSize);
+            setDanmakuDisplayArea(settings.danmakuDisplayArea);
+            setBlockedCategories(settings.blockedCategories || []);
+        };
+
+        syncFromStore();
+        return settingsStore.subscribe(syncFromStore);
     }, []);
 
     const handleSourcesChange = (newSources: VideoSource[]) => {
@@ -283,6 +291,15 @@ export function useSettingsPage() {
         });
     };
 
+    const handleVideoTogetherEnabledChange = (enabled: boolean) => {
+        setVideoTogetherEnabled(enabled);
+        const currentSettings = settingsStore.getSettings();
+        settingsStore.saveSettings({
+            ...currentSettings,
+            videoTogetherEnabled: enabled,
+        });
+    };
+
     const handleLocaleChange = (newLocale: LocaleOption) => {
         setLocale(newLocale);
         const currentSettings = settingsStore.getSettings();
@@ -344,7 +361,14 @@ export function useSettingsPage() {
         setIsRestoreDefaultsDialogOpen(false);
     };
 
-    const handleResetAll = () => {
+    const handleResetAll = async () => {
+        try {
+            await fetch('/api/auth/session', { method: 'DELETE' });
+        } catch {
+            // Clear local state even if the server-side logout request fails.
+        }
+
+        clearSession();
         settingsStore.resetToDefaults();
         setIsResetDialogOpen(false);
         window.location.reload();
@@ -392,6 +416,8 @@ export function useSettingsPage() {
         handleRememberScrollPositionChange,
         locale,
         handleLocaleChange,
+        videoTogetherEnabled,
+        handleVideoTogetherEnabledChange,
         danmakuApiUrl,
         handleDanmakuApiUrlChange,
         danmakuOpacity,
