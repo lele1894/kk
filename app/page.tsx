@@ -4,7 +4,6 @@ import { Suspense, useMemo } from 'react';
 import { SearchForm } from '@/components/search/SearchForm';
 import { NoResults } from '@/components/search/NoResults';
 import { PopularFeatures } from '@/components/home/PopularFeatures';
-import { WatchHistorySidebar } from '@/components/history/WatchHistorySidebar';
 import { FavoritesSidebar } from '@/components/favorites/FavoritesSidebar';
 import { Navbar } from '@/components/layout/Navbar';
 import { SearchResults } from '@/components/home/SearchResults';
@@ -27,7 +26,9 @@ function HomePage() {
 
   // Real-time latency pinging
   const sourceUrls = useMemo(() =>
-    availableSources.map(s => ({ id: s.id, baseUrl: s.id })), // Using id as baseUrl if not available elsewhere
+    availableSources.flatMap((source) =>
+      source.baseUrl ? [{ id: source.id, baseUrl: source.baseUrl }] : []
+    ),
     [availableSources]
   );
 
@@ -85,9 +86,6 @@ function HomePage() {
 
       {/* Favorites Sidebar - Left */}
       <FavoritesSidebar />
-
-      {/* Watch History Sidebar - Right */}
-      <WatchHistorySidebar />
     </div>
   );
 }

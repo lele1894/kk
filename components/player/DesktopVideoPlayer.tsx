@@ -16,6 +16,7 @@ import { useIsIOS, useIsMobile } from '@/lib/hooks/mobile/useDeviceDetection';
 import { useDoubleTap } from '@/lib/hooks/mobile/useDoubleTap';
 import { settingsStore, DEFAULT_SEEK_STEP_SECONDS } from '@/lib/store/settings-store';
 import { premiumModeSettingsStore } from '@/lib/store/premium-mode-settings';
+import { shouldHidePlayerCursor } from '@/lib/player/cursor-visibility';
 import './web-fullscreen.css';
 
 type WebFullscreenSize = 'full' | 'large' | 'focused';
@@ -312,9 +313,22 @@ export function DesktopVideoPlayer({
     };
   }, [data.fullscreenMode, shouldForceLandscape, viewportMetrics, webFullscreenSize]);
 
+  const shouldHideCursor = shouldHidePlayerCursor({
+    isFullscreen: data.isFullscreen,
+    isPlaying: data.isPlaying,
+    showControls: data.showControls,
+    hasInteractiveOverlay: data.showSpeedMenu || data.showMoreMenu || data.showVolumeBar,
+  });
+
+  const containerStyle = React.useMemo<React.CSSProperties>(() => ({
+    ...(webFullscreenStyle ?? {}),
+    cursor: shouldHideCursor ? 'none' : undefined,
+  }), [webFullscreenStyle, shouldHideCursor]);
+
   const stageClassName = data.fullscreenMode === 'window'
     ? 'kvideo-stage kvideo-web-fullscreen-stage'
     : 'kvideo-stage absolute inset-0';
+  const isTopAlignedWebFullscreen = data.fullscreenMode === 'window' && isMobile && !isLandscape && !shouldForceLandscape;
 
   // Mobile double-tap gesture for skip forward/backward
   const { handleTap } = useDoubleTap({
@@ -341,15 +355,15 @@ export function DesktopVideoPlayer({
   return (
     <div
       ref={containerRef}
-      className={`kvideo-container relative aspect-video bg-black rounded-[var(--radius-2xl)] group ${data.fullscreenMode === 'window' ? 'is-web-fullscreen' : ''
-        } ${shouldForceLandscape ? 'force-landscape' : ''}`}
-      style={webFullscreenStyle}
+      className={`kvideo-container relative aspect-video bg-black group ${data.fullscreenMode === 'window' ? 'is-web-fullscreen' : ''
+        } ${shouldForceLandscape ? 'force-landscape' : ''} ${isTopAlignedWebFullscreen ? 'top-align-stage' : ''} overflow-hidden rounded-none sm:rounded-[var(--radius-2xl)]`}
+      style={containerStyle}
       onMouseMove={() => { handleMouseMove(); }}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
       <div className={stageClassName}>
         {/* Clipping Wrapper for video and overlays - Restores the 'Liquid Glass' rounded look */}
-        <div className={`absolute inset-0 overflow-hidden pointer-events-none ${data.fullscreenMode === 'window' ? 'rounded-0' : 'rounded-[var(--radius-2xl)]'
+        <div className={`absolute inset-0 overflow-hidden pointer-events-none ${data.fullscreenMode === 'window' ? 'rounded-none' : 'rounded-none sm:rounded-[var(--radius-2xl)]'
           }`}>
           <div className="absolute inset-0 pointer-events-auto">
           {/* Video Element */}

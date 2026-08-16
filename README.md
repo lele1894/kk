@@ -23,6 +23,8 @@
 
 **KVideo** 是一个高性能、现代化的视频聚合与播放应用，专注于提供极致的用户体验和视觉设计。本项目利用 Next.js 16 的最新特性，结合 React 19 和 Tailwind CSS v4，打造了一个既美观又强大的视频浏览平台。
 
+> **说明**：仓库默认不内置任何视频源、高级源或 IPTV 源。部署者必须自行配置已获授权、可合法使用且允许当前部署方式访问的内容来源。
+
 ### 核心设计理念：Liquid Glass（液态玻璃）
 
 项目的视觉设计基于 **"Liquid Glass"** 设计系统，这是一套融合了以下特性的现代化 UI 设计语言：
@@ -255,9 +257,31 @@
 
 ## 账户与访问控制
 
-KVideo 支持基于环境变量的账户认证系统，支持角色区分和细粒度权限控制。
+KVideo 现在支持两套认证模式：
 
-### 方式一：单管理员密码
+- **托管账户模式（推荐）**：配置 `AUTH_SECRET` + Upstash Redis 后，登录改为 **用户名 + 密码**，超级管理员可直接在设置页创建、修改、重置和删除账户。
+- **环境变量模式（兼容旧部署）**：未启用托管账户时，继续使用 `ADMIN_PASSWORD` / `ACCESS_PASSWORD` / `ACCOUNTS` 进行密码登录。
+
+### 方式一：托管账户模式（推荐）
+
+启用条件：
+
+- 配置 `AUTH_SECRET`
+- 配置 `UPSTASH_REDIS_REST_URL`
+- 配置 `UPSTASH_REDIS_REST_TOKEN`
+- （可选）配置 `MANAGED_AUTH_ENABLED=true` 强制优先使用托管账户模式
+
+启用后：
+
+- 主登录页使用 **用户名 + 密码**
+- 服务端使用 HTTP-only 签名会话 Cookie 作为认证真源
+- 超级管理员可在设置页直接管理账户和权限
+- 配置同步、历史、收藏等跨设备数据会按登录账户自动隔离
+
+> **强制优先托管模式**：设置 `MANAGED_AUTH_ENABLED=true` 只会改变认证模式选择，不会跳过 `AUTH_SECRET` 和 Redis 检查。缺少 `AUTH_SECRET`、`UPSTASH_REDIS_REST_URL` 或 `UPSTASH_REDIS_REST_TOKEN` 时，托管账户模式仍不会启用。
+首次启用时，如果 Redis 里还没有账户，会自动使用 `ADMIN_PASSWORD` 和 `ACCOUNTS` 作为引导种子创建首批托管账户。
+
+### 方式二：单管理员密码（环境变量模式）
 
 通过 `ADMIN_PASSWORD` 环境变量设置管理员密码：
 
@@ -270,11 +294,16 @@ docker run -d -p 3000:3000 -e ADMIN_PASSWORD=your_password --name kvideo kuekhao
 
 > **向后兼容**：`ACCESS_PASSWORD` 环境变量仍然有效，当 `ADMIN_PASSWORD` 未设置时，`ACCESS_PASSWORD` 将作为管理员密码使用。
 
-### 方式二：多账户系统
+### 方式三：多账户系统（环境变量模式）
 
 通过 `ACCOUNTS` 环境变量配置多个账户，每个账户拥有独立的数据空间（收藏、历史、设置、个人源等）。
 
-**格式：** `密码:名称[:角色[:权限1|权限2|...]]`，多个账户用逗号分隔。
+**兼容格式：**
+
+- 旧格式：`密码:名称[:角色[:权限1|权限2|...]]`
+- 新格式：`用户名:密码:名称[:角色[:权限1|权限2|...]]`
+
+多个账户之间用逗号分隔。
 
 - **角色**：`super_admin`（超级管理员）、`admin`（管理员）或 `viewer`（观众，默认）
 - **权限**（可选）：使用 `|` 分隔，为该账户添加其角色之外的额外权限
@@ -320,7 +349,9 @@ docker run -d -p 3000:3000 \
 
 这些数据按用户 profileId 隔离存储，切换账户后自动加载对应的个人配置。
 
-### 方式三：高级内容独立密码
+> 说明：旧环境变量模式下仍然支持“仅输入密码”登录；托管账户模式下则统一改为“用户名 + 密码”登录。
+
+### 方式四：高级内容独立密码
 
 通过 `PREMIUM_PASSWORD` 环境变量为高级内容（`/premium`）设置独立的访问密码，实现与主密码的分离控制。
 
@@ -340,7 +371,7 @@ docker run -d -p 3000:3000 \
 - 密码仅在当前浏览器会话有效，关闭浏览器后需重新输入
 - 不设置此变量时，高级内容无额外密码保护
 
-### 方式四：会话持久化设置
+### 方式五：会话持久化设置
 
 通过 `PERSIST_SESSION` 环境变量控制用户登录后是否在设备上记住会话：
 
@@ -376,21 +407,50 @@ docker run -d -p 3000:3000 \
 - 变量名：`NEXT_PUBLIC_SITE_NAME`
 - 变量值：`我的视频平台`
 
-**Docker 部署：**
-```bash
-docker run -d -p 3000:3000 \
-  -e NEXT_PUBLIC_SITE_NAME="我的视频平台" \
-  -e NEXT_PUBLIC_SITE_TITLE="我的视频 - 聚合播放平台" \
-  -e NEXT_PUBLIC_SITE_DESCRIPTION="专属视频聚合播放平台" \
-  --name kvideo kuekhaoyang/kvideo:latest
-```
-
 **本地开发：**
 在项目根目录创建 `.env.local` 文件：
 ```env
 NEXT_PUBLIC_SITE_NAME=我的视频平台
 NEXT_PUBLIC_SITE_TITLE=我的视频 - 聚合播放平台
 NEXT_PUBLIC_SITE_DESCRIPTION=专属视频聚合播放平台
+```
+
+> [!NOTE]
+> `NEXT_PUBLIC_SITE_*` 属于构建时变量。直接运行 Docker Hub 的预构建镜像时，`docker run -e NEXT_PUBLIC_SITE_* ...` 不会覆盖已经打包进前端的文案。
+
+## Docker 图标自定义
+
+Docker 预构建镜像支持在运行时替换图标，无需重新构建镜像。该配置会作用于顶部 Logo 和浏览器 favicon；如果你还要同步替换安装后的 PWA 图标，请直接覆盖仓库中的 `public/icon.png` 后重新构建镜像。
+
+### 可用环境变量：
+
+| 变量名 | 说明 |
+|--------|------|
+| `SITE_ICON_FILE` | 从容器内文件路径读取图标，适合 Docker 挂载，优先级高于 `SITE_ICON_URL` |
+| `SITE_ICON_URL` | 直接使用外部 URL 或站内路径作为图标 |
+
+### 配置示例：
+
+**Docker 挂载文件（推荐）：**
+```bash
+docker run -d -p 3000:3000 \
+  -v /path/to/icon.png:/app/custom/icon.png:ro \
+  -e SITE_ICON_FILE=/app/custom/icon.png \
+  --name kvideo kuekhaoyang/kvideo:latest
+```
+
+**Docker 使用 URL：**
+```bash
+docker run -d -p 3000:3000 \
+  -e SITE_ICON_URL="https://example.com/icon.png" \
+  --name kvideo kuekhaoyang/kvideo:latest
+```
+
+**Docker 使用站内路径：**
+```bash
+docker run -d -p 3000:3000 \
+  -e SITE_ICON_URL="/placeholder-poster.svg" \
+  --name kvideo kuekhaoyang/kvideo:latest
 ```
 
 ## 自动订阅源配置
@@ -476,11 +536,11 @@ docker run -d -p 3000:3000 \
 
 ## 一起看 (VideoTogether) 配置
 
-播放器页面和 IPTV 页面默认内置 [VideoTogether](https://videotogether.github.io/zh-cn/guide/website.html) 官方网页集成脚本，进入播放页后即可直接使用一起看功能。
+播放器页面和 IPTV 页面支持集成 [VideoTogether](https://videotogether.github.io/zh-cn/guide/website.html) 官方网页脚本。应用内默认关闭，用户可在设置页手动开启；开启后仅在播放器和 IPTV 页面显示，并默认折叠为小图标。
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| `VIDEOTOGETHER_ENABLED` | 设为 `false` 时禁用一起看集成 | `true` |
+| `VIDEOTOGETHER_ENABLED` | 设为 `false` 时彻底禁用一起看集成（即使用户在设置页开启也不会加载） | `true` |
 | `VIDEOTOGETHER_SCRIPT_URL` | 自定义 VideoTogether 脚本地址，适合自托管或替换 CDN | `https://fastly.jsdelivr.net/gh/VideoTogether/VideoTogether@latest/release/extension.website.user.js` |
 | `VIDEOTOGETHER_SETTING_URL` | 自定义 VideoTogether 设置页地址，对应官方 `window.videoTogetherWebsiteSettingUrl` 接口 | - |
 
@@ -499,6 +559,8 @@ docker run -d -p 3000:3000 \
 ## IPTV 直播源配置
 
 通过环境变量预设 IPTV 直播源，应用启动时会自动添加到直播源列表中。
+
+> **注意**：在 Vercel / Cloudflare 托管部署的合规模式下，IPTV 页面与流中继默认关闭，`IPTV_SOURCES` / `NEXT_PUBLIC_IPTV_SOURCES` 不会生效。
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
@@ -548,6 +610,43 @@ PORT=8080 npm run start
 # Docker
 docker run -e PORT=8080 -p 8080:8080 --name kvideo kuekhaoyang/kvideo:latest
 ```
+
+## 局域网 IP 访问
+
+通过 `ALLOW_LAN_ACCESS` 环境变量控制本机开发或传统 Node.js 自托管时是否允许同一局域网设备直接访问当前设备 IP。
+
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `ALLOW_LAN_ACCESS` | 设为 `true` / `1` / `yes` / `on` 时，`npm run dev` 和 `npm run start` 会绑定 `0.0.0.0`，并在开发模式下放行常见内网 IPv4 来源；未开启时默认只绑定 `localhost` | `false` |
+| `NEXT_PUBLIC_ALLOW_LAN_ACCESS` | `ALLOW_LAN_ACCESS` 的构建时兼容名称；优先使用 `ALLOW_LAN_ACCESS` | `false` |
+| `LAN_ALLOWED_DEV_ORIGINS` | 追加 Next.js 开发模式允许访问 dev 资源的主机名或通配符，逗号、空格或换行分隔 | - |
+
+**示例：**
+
+```bash
+# 开发模式允许同局域网设备访问
+ALLOW_LAN_ACCESS=true npm run dev
+
+# 传统 Node.js 生产模式允许同局域网设备访问
+ALLOW_LAN_ACCESS=true npm run start
+
+# 追加自定义开发来源；Next.js 需要主机名，不要填写路径
+ALLOW_LAN_ACCESS=true LAN_ALLOWED_DEV_ORIGINS="kvideo.lan,192.168.50.10" npm run dev
+```
+
+开启后访问地址通常是 `http://<当前设备内网 IP>:3000`。如果仍然无法访问，优先检查系统防火墙、路由器客户端隔离、端口映射、反向代理监听地址以及实际运行端口；这些不是 KVideo 前端代码可以绕过的问题。Docker 镜像已经在容器内绑定 `0.0.0.0`，是否能从局域网访问主要取决于 `-p` 端口映射和宿主机网络策略。
+
+## 内置媒体代理说明
+
+设置页的“代理播放模式”使用的是当前 KVideo 部署内置的 `/api/proxy` 媒体转发端点，不是让用户填写第三方 HTTP/SOCKS 代理服务器。
+
+| 模式 | 行为 |
+|------|------|
+| 智能重试 | 优先直连，播放失败后自动切换到 `/api/proxy` |
+| 仅直连 | 不使用 `/api/proxy`，失败时直接报错 |
+| 总是代理 | 播放地址始终通过 `/api/proxy` 转发 |
+
+`/api/proxy?url=<encoded-video-url>` 只在 Docker 或传统 Node.js 自托管完整模式下启用。Vercel / Cloudflare 托管部署运行合规模式，会禁用外部媒体代理、热链转发和 IPTV 流中继；这种部署环境下设置页会显示仅支持直连播放。
 
 ## 自定义源 JSON 格式
 
@@ -619,15 +718,21 @@ docker run -e PORT=8080 -p 8080:8080 --name kvideo kuekhaoyang/kvideo:latest
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| `ADMIN_PASSWORD` | 管理员密码 | - |
+| `AUTH_SECRET` | 托管账户模式的会话签名密钥；启用 Redis 托管账户时必填 | - |
+| `MANAGED_AUTH_ENABLED` | 设为 `true` 时强制优先使用托管账户模式；仍要求 `AUTH_SECRET` 和 Upstash Redis 配置完整 | - |
+| `ADMIN_PASSWORD` | 管理员密码；环境变量模式直接生效，也可作为托管模式首次引导的超级管理员种子 | - |
 | `ACCESS_PASSWORD` | 访问密码（向后兼容，等同于 `ADMIN_PASSWORD`） | - |
-| `ACCOUNTS` | 多账户配置，格式：`密码:名称[:角色[:权限1\|权限2]]`，逗号分隔 | - |
+| `ACCOUNTS` | 多账户配置；支持 `密码:名称[:角色[:权限1\|权限2]]` 和 `用户名:密码:名称[:角色[:权限1\|权限2]]` 两种格式 | - |
 | `PREMIUM_PASSWORD` | 高级内容独立密码，访问 `/premium` 时需输入 | - |
 | `PERSIST_SESSION` | 是否持久化登录会话 | `true` |
 | `PORT` | 自定义应用端口 | `3000` |
+| `ALLOW_LAN_ACCESS` / `NEXT_PUBLIC_ALLOW_LAN_ACCESS` | 允许同局域网设备通过当前设备 IP 访问本机开发或传统 Node.js 自托管服务 | `false` |
+| `LAN_ALLOWED_DEV_ORIGINS` / `NEXT_PUBLIC_LAN_ALLOWED_DEV_ORIGINS` | 追加 Next.js 开发模式允许访问 dev 资源的主机名或通配符 | - |
 | `NEXT_PUBLIC_SITE_TITLE` | 浏览器标签页标题 | `KVideo - 视频聚合平台` |
 | `NEXT_PUBLIC_SITE_DESCRIPTION` | 站点描述 | `视频聚合平台` |
 | `NEXT_PUBLIC_SITE_NAME` | 站点头部名称 | `KVideo` |
+| `SITE_ICON_FILE` | Docker 运行时图标文件路径（优先于 `SITE_ICON_URL`） | - |
+| `SITE_ICON_URL` | Docker 运行时图标 URL 或站内路径 | - |
 | `SUBSCRIPTION_SOURCES` | 自动订阅源配置（服务端） | - |
 | `NEXT_PUBLIC_SUBSCRIPTION_SOURCES` | 自动订阅源配置（客户端） | - |
 | `IPTV_SOURCES` / `NEXT_PUBLIC_IPTV_SOURCES` | IPTV 直播源配置 | - |
@@ -635,7 +740,7 @@ docker run -e PORT=8080 -p 8080:8080 --name kvideo kuekhaoyang/kvideo:latest
 | `AD_KEYWORDS` / `NEXT_PUBLIC_AD_KEYWORDS` | 广告过滤关键词 | - |
 | `AD_KEYWORDS_FILE` | 广告关键词文件路径 | - |
 | `DANMAKU_API_URL` / `NEXT_PUBLIC_DANMAKU_API_URL` | 弹幕聚合 API 地址 | - |
-| `VIDEOTOGETHER_ENABLED` | 是否启用 VideoTogether 一起看集成（`false` 时关闭） | `true` |
+| `VIDEOTOGETHER_ENABLED` | 是否允许 VideoTogether 一起看集成（`false` 时关闭） | `true` |
 | `VIDEOTOGETHER_SCRIPT_URL` | VideoTogether 脚本地址 | `https://fastly.jsdelivr.net/gh/VideoTogether/VideoTogether@latest/release/extension.website.user.js` |
 | `VIDEOTOGETHER_SETTING_URL` | VideoTogether 设置页地址 | - |
 | `UPSTASH_REDIS_REST_URL` | Upstash Redis REST URL（跨设备同步：配置、历史、收藏） | - |
@@ -660,13 +765,13 @@ docker run -e PORT=8080 -p 8080:8080 --name kvideo kuekhaoyang/kvideo:latest
 
 - **ESLint 10**：代码质量检查
 - **PostCSS 8**：CSS 处理器
-- **Vercel Analytics**：性能监控和分析
+- **Vercel Analytics**：仅在 Vercel 部署中启用的性能监控和分析
 - **Cloudflare Pages**：边缘部署支持
 
 ### 架构特点
 
 - **App Router**：Next.js 的新路由系统，支持服务端组件和流式渲染
-- **API Routes**：内置 API 端点，处理认证、豆瓣数据、视频源代理、IPTV 代理和弹幕聚合
+- **API Routes**：内置 API 端点，处理认证、豆瓣数据、弹幕聚合，以及仅在自托管完整模式下启用的媒体代理 / IPTV 中继
 - **Server-Sent Events**：搜索 API 使用 SSE 流式返回实时结果
 - **Service Worker**：PWA 支持和资源缓存
 - **Server Components**：优化首屏加载性能
@@ -674,45 +779,25 @@ docker run -e PORT=8080 -p 8080:8080 --name kvideo kuekhaoyang/kvideo:latest
 - **Edge Runtime**：API 路由运行在 Edge Runtime 上，提供更低延迟
 - **Profile-based Storage**：所有用户数据按 profileId（SHA-256 哈希）隔离存储
 
+## 部署合规说明
+
+Issue [#127](https://github.com/KuekHaoYang/KVideo/issues/127) 之后，仓库的公开部署策略做了调整，目的只有一个：避免把这个项目继续包装成“GitHub 账号直连第三方平台的一键导入仓库”。
+
+- 不再推荐任何 `Deploy with Vercel`、`Connect GitHub`、`Fork 后直接授权第三方读取仓库` 这一类 GitHub 直连导入流程。
+- Vercel / Cloudflare 托管部署现在默认运行在**合规模式**：自动关闭外部媒体代理、热链转发和 IPTV 流中继，仅保留直连播放路径。
+- 需要 `/api/proxy`、`/api/iptv/stream`、自定义 `User-Agent` / `Referer` 转发、IPTV 中继等能力时，请使用 Docker 或传统 Node.js 自托管。
+- 无论部署到哪里，都只应接入你有权使用、且允许当前部署环境访问的内容来源。
+- 相关政策请直接阅读官方原文：
+  - [GitHub Terms of Service](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service)
+  - [GitHub Acceptable Use Policies](https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies)
+  - [Vercel: why running another CDN / proxy on top of Vercel is not recommended](https://vercel.com/guides/why-running-another-cdn-on-top-of-vercel-is-not-recommended)
+  - [Cloudflare abuse approach](https://www.cloudflare.com/trust-hub/abuse-approach/)
+
 ## 快速部署
 
 ### 部署到自己的服务器
 
-#### 选项 1：Vercel 一键部署（推荐）
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/KuekHaoYang/KVideo)
-
-1. 点击上方按钮
-2. 连接你的 GitHub 账号
-3. Vercel 会自动检测 Next.js 项目并部署
-4. 几分钟后即可访问你自己的 KVideo 实例
-
-#### 选项 2：Cloudflare Pages 部署 (推荐)
-
-此方法完全免费且速度极快，是部署本项目的最佳选择。
-
-1. **Fork 本仓库**：首先将项目 Fork 到你的 GitHub 账户。
-
-2. **创建项目**：
-   - 点击访问 [**Cloudflare Pages - Connect Git**](https://dash.cloudflare.com/?to=/:account/pages/new/provider/github)。
-   - 如果未连接 GitHub，请点击 **Connect GitHub**；若已连接，直接选择你刚刚 Fork 的 `KVideo` 项目并点击 **Begin setup**。
-
-3. **配置构建参数**：
-   - **Project name**: 默认为 `kvideo` (建议保持不变，后续链接基于此名称)
-   - **Framework Preset**: 选择 `Next.js`
-   - **Build command**: 输入 `npm run pages:build`
-   - **Build output directory**: 输入 `.vercel/output/static`
-   - 点击 **Save and Deploy**。
-
-4. **等待部署完成**：
-   > 项目已内置 `wrangler.toml` 配置文件，其中包含 `nodejs_compat` 兼容性标志，无需手动配置。
-
-5. **如果部署失败**：
-   > 如果看到 `Unknown internal error occurred` 错误，这通常是 Cloudflare 的临时服务端问题。请在 **Deployments** 列表中找到最新部署，点击 `...` 菜单选择 **Retry deployment** 重试即可。
-   >
-   > 如果首次部署仍有问题，可尝试在 **[项目设置页面](https://dash.cloudflare.com/?to=/:account/pages/view/kvideo/settings/production)** 底部的 **Compatibility flags** 中手动添加 `nodejs_compat`，然后重新部署。
-
-#### 选项 3：Docker 部署
+#### 选项 1：Docker 部署（推荐，完整功能）
 
 **从 Docker Hub 拉取（最简单）：**
 
@@ -758,7 +843,7 @@ docker run -d -p 3000:3000 \
   --name kvideo kuekhaoyang/kvideo:latest
 ```
 
-#### 选项 4：传统 Node.js 部署
+#### 选项 2：传统 Node.js 部署（完整功能）
 
 ```bash
 # 1. 克隆仓库
@@ -777,9 +862,37 @@ npm start
 
 应用将在 `http://localhost:3000` 启动。
 
-#### 选项 5：Android TV APK 构建
+同一局域网设备需要直接访问当前设备 IP 时，使用 `ALLOW_LAN_ACCESS=true npm run start`，并确认系统防火墙允许入站访问对应端口。
+
+#### 选项 3：Vercel / Cloudflare 托管部署（合规模式）
+
+适用于只需要搜索、账户、设置、直连播放等基础能力，不需要外部媒体代理 / IPTV 中继的场景。
+
+1. **只从本地工作副本部署**：不要使用 GitHub 一键导入、Fork 后导入、Connect GitHub 读取仓库等流程。
+2. **Vercel**：使用本地 CLI 部署现有项目，参考官方文档：[Import an existing project](https://vercel.com/docs/getting-started-with-vercel/import)。
+3. **Cloudflare**：使用官方 **Direct Upload** 或 CLI 工作流，不要使用 Git integration，参考官方文档：[Getting started with Pages](https://developers.cloudflare.com/pages/get-started)。
+4. **Cloudflare Direct Upload 正确流程**：
+   ```bash
+   npm install
+   npm run pages:build
+   ```
+   构建完成后，上传 **`.vercel/output/static`** 目录，而不是仓库根目录、`.next` 目录或源码文件。上传仓库根目录只会把源码当静态文件托管，根路径没有构建产物可供 Pages 入口加载，结果就是 404。
+5. **Cloudflare CLI 发布**：如果你使用 CLI，请发布同一个构建产物目录：
+   ```bash
+   npx wrangler pages deploy .vercel/output/static
+   ```
+6. **Cloudflare 构建链路**：`npm run pages:build` 现在固定使用仓库内安装的 `next-on-pages` 和兼容版本的 `vercel`，避免构建时临时拉取不受控版本。`wrangler.toml` 继续提供 `nodejs_compat` 兼容标志。
+7. **功能限制**：托管平台会自动禁用外部媒体代理和 IPTV 流中继；请仅使用允许浏览器直连、允许当前来源访问且具备合法授权的内容源。
+8. **如果你需要完整能力**：直接改用 Docker 或传统 Node.js 自托管，不要在托管平台上强行恢复这些能力。
+
+#### 选项 4：Android TV APK 构建
 
 项目内置了一个轻量的 Android TV WebView 壳应用，可以将 KVideo 打包成 APK 安装到 Android TV 或机顶盒上。
+
+**直接下载：**
+
+- 仓库维护者可以通过 GitHub Actions 的 `Android TV APK` 工作流直接发布预构建 APK 到 **Releases**
+- 用户下载安装后，首次启动时填写自己的 KVideo 地址即可，不需要再改源码重新编译
 
 **前置要求：**
 
@@ -788,35 +901,43 @@ npm start
 
 **步骤：**
 
-1. **修改目标 URL**：编辑 `android-tv/app/src/main/java/com/kvideo/tv/MainActivity.kt`，将 `KVIDEO_URL` 改为你的部署地址：
-   ```kotlin
-   private const val KVIDEO_URL = "https://your-kvideo-instance.com"
-   ```
-
-2. **使用 Android Studio 构建（推荐）**：
+1. **使用 Android Studio 构建（推荐）**：
    - 用 Android Studio 打开 `android-tv/` 目录
    - 等待 Gradle 同步完成
    - 点击 **Build → Build Bundle(s) / APK(s) → Build APK(s)**
    - APK 输出在 `android-tv/app/build/outputs/apk/debug/app-debug.apk`
 
-3. **使用命令行构建**：
+2. **使用命令行构建**：
    ```bash
    cd android-tv
    ./gradlew assembleDebug
    ```
    APK 输出在 `app/build/outputs/apk/debug/app-debug.apk`
 
-4. **安装到 Android TV**：
+   如果你希望在构建时预置默认地址，可额外传入 `-PkvideoUrl`：
+   ```bash
+   cd android-tv
+   ./gradlew assembleDebug -PkvideoUrl="https://your-kvideo-instance.com"
+   ```
+
+3. **安装到 Android TV**：
    ```bash
    adb install app/build/outputs/apk/debug/app-debug.apk
    ```
    或通过 U 盘、文件管理器等方式侧载安装。
 
+4. **首次启动配置**：
+   - 首次打开 APK 时输入你的 KVideo 部署地址
+   - 保存后应用会记住该地址，后续直接打开即可
+   - 需要修改地址时，可在站点根页按返回，或使用部分遥控器的菜单键重新打开设置页
+
 > **注意**：此 APK 是一个 WebView 壳应用，需要你的 KVideo 实例已经部署并可访问。APK 本身不包含 KVideo 代码，仅作为 TV 端的浏览器入口。
 >
 > **最低系统要求**：Android 8.0 (API 26) 及以上。Android 7.0 及更低版本的 WebView 不支持本项目使用的 ES2017+ JavaScript 特性和现代 CSS，可能导致白屏。如遇白屏问题，请升级系统 WebView 或使用 Android 8.0+ 设备。
+>
+> **发布方式**：GitHub Actions 的 `Android TV APK` 工作流会持续验证壳应用可构建；如需对外发布预构建 APK，可手动触发该工作流并填写 `release_tag`，生成对应的 GitHub Release 资产。
 
-#### 选项 6：Apple TV 应用构建
+#### 选项 5：Apple TV 应用构建
 
 项目内置了一个轻量的 tvOS WKWebView 壳应用，可以将 KVideo 安装到 Apple TV 上。
 
@@ -852,7 +973,18 @@ npm start
 
 ### Vercel 部署
 
-Vercel 会自动检测 GitHub 仓库的更新并重新部署，无需手动操作。
+不要依赖 GitHub 仓库自动导入。请在本地工作副本完成更新后，使用 Vercel CLI 重新发布当前目录。
+
+### Cloudflare 托管部署
+
+请在本地工作副本完成更新后，重新执行：
+
+```bash
+npm install
+npm run pages:build
+```
+
+然后使用 Direct Upload 或 CLI 发布 **`.vercel/output/static`**。不要上传仓库根目录，也不要上传 `.next`，否则 Pages 只会托管源码文件，访问站点时直接 404。
 
 ### Docker 部署
 
@@ -888,6 +1020,27 @@ npm start
 
 这是 Cloudflare 的临时服务端错误，与代码无关。请在 Deployments 列表中重试部署即可。项目已内置 `wrangler.toml` 配置 `nodejs_compat` 兼容性标志。
 
+### Cloudflare Pages Direct Upload 部署后打开是 404
+
+这通常不是应用路由问题，而是上传了错误的目录。Cloudflare Pages 的 Direct Upload 需要上传已经构建完成的产物目录。
+
+正确做法：
+
+```bash
+npm install
+npm run pages:build
+```
+
+然后上传 **`.vercel/output/static`**。
+
+错误做法：
+
+- 上传仓库根目录
+- 上传 `.next`
+- 直接把源码压缩包丢给 Direct Upload
+
+这些做法都不会生成 Pages 可执行入口，部署成功后打开站点就会是 404。
+
 ### IPv6 环境下 HTTPS 访问视频无法播放
 
 如果你的网络使用 IPv6 访问，且通过路由器端口映射（如 20443 → 443），请确保：
@@ -903,12 +1056,14 @@ Android 7.0 (API 24) 的 WebView 基于 Chrome 51，不支持本项目使用的�
 
 ### IPTV 部分直播流无法播放
 
+如果你部署在 Vercel / Cloudflare 托管平台，IPTV 在合规模式下是**默认禁用**的；这不是 Bug，而是刻意限制。下面的说明只适用于 Docker / Node.js 自托管完整模式。
+
 浏览器原生仅支持 HLS (m3u8) 和部分 MP4/WebM 格式。以下格式在浏览器中不受支持：
 - RTMP/RTSP 流（需要专用播放器如 VLC/PotPlayer）
 - 某些加密或受 DRM 保护的流
 - 需要特定客户端验证的流
 
-KVideo 已内置代理服务器自动处理 CORS 问题和 HLS URL 重写，大部分 HLS 直播流应能正常播放。
+在自托管完整模式下，KVideo 的 IPTV 代理会处理 CORS 问题和 HLS URL 重写，大部分 HLS 直播流应能正常播放。
 
 ### IPTV CCTV 等频道只有声音没有画面
 
